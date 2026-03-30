@@ -68,6 +68,14 @@ extension UsageStore {
     }
 }
 
+#if DEBUG
+extension UsageStore {
+    func _refreshTokenUsageForTesting(_ provider: UsageProvider, force: Bool) async {
+        await self.refreshTokenUsage(provider, force: force)
+    }
+}
+#endif
+
 @MainActor
 @Observable
 final class UsageStore {
@@ -415,7 +423,9 @@ final class UsageStore {
                     group.addTask { await self.refreshProvider(provider) }
                     group.addTask { await self.refreshStatus(provider) }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if !self.shouldUseSafeExternalSource(for: .codex) {
+                    group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
             }
 
             // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
@@ -423,9 +433,11 @@ final class UsageStore {
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-            await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+            if !self.shouldUseSafeExternalSource(for: .codex) {
+                await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+            }
 
-            if self.openAIDashboardRequiresLogin {
+            if !self.shouldUseSafeExternalSource(for: .codex), self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
@@ -1060,6 +1072,7 @@ extension UsageStore {
     }
 
     func codexAccountEmailForOpenAIDashboard() -> String? {
+        guard !self.shouldUseSafeExternalSource(for: .codex) else { return nil }
         let direct = self.snapshots[.codex]?.accountEmail(for: .codex)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let direct, !direct.isEmpty { return direct }
@@ -1528,6 +1541,11 @@ extension UsageStore {
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
+            return
+        }
+
+        guard !self.isCredentialFreeViewerModeEnabled(for: provider) else {
+            self.clearSafeExternalTokenState(provider)
             return
         }
 

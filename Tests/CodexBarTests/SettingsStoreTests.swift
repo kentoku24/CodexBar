@@ -5,7 +5,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-struct SettingsStoreTests {
+struct SettingsStoreCoreTests {
     @Test
     func `default refresh frequency is five minutes`() throws {
         let suite = "SettingsStoreTests-default"
@@ -232,7 +232,10 @@ struct SettingsStoreTests {
         #expect(resolved == [.codex, .opencode])
         #expect(store.mergedOverviewSelectedProviders == [.codex, .opencode])
     }
+}
 
+@MainActor
+struct SettingsStoreMergedOverviewTests {
     @Test
     func `reconcile merged overview selection does not clobber stored preference when three or fewer`() throws {
         let suite = "SettingsStoreTests-merged-overview-three-or-fewer"
@@ -408,7 +411,10 @@ struct SettingsStoreTests {
         let resolvedAfterReenable = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
         #expect(resolvedAfterReenable == [.codex, .claude, .cursor])
     }
+}
 
+@MainActor
+struct SettingsStoreProviderConfigTests {
     @Test
     func `persists open code workspace ID across instances`() throws {
         let suite = "SettingsStoreTests-opencode-workspace"
@@ -648,7 +654,10 @@ struct SettingsStoreTests {
         #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
         #expect(store.codexCookieSource == .auto)
     }
+}
 
+@MainActor
+struct SettingsStoreObservationAndOrderTests {
     @Test
     func `menu observation token updates on defaults change`() async throws {
         let suite = "SettingsStoreTests-observation-defaults"
@@ -662,20 +671,35 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        final class ObservationFlag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+
+            func set() {
+                self.lock.lock()
+                self.value = true
+                self.lock.unlock()
+            }
+
+            func get() -> Bool {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return self.value
+            }
+        }
+
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
-            Task { @MainActor in
-                didChange = true
-            }
+            didChange.set()
         }
 
         store.statusChecksEnabled.toggle()
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.get() == true)
     }
 
     @Test
@@ -691,20 +715,35 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        final class ObservationFlag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+
+            func set() {
+                self.lock.lock()
+                self.value = true
+                self.lock.unlock()
+            }
+
+            func get() -> Bool {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return self.value
+            }
+        }
+
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.codexCookieSource
         } onChange: {
-            Task { @MainActor in
-                didChange = true
-            }
+            didChange.set()
         }
 
         store.codexCookieSource = .manual
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.get() == true)
     }
 
     @Test

@@ -19,6 +19,9 @@ extension UsageStore {
     }
 
     func planUtilizationHistory(for provider: UsageProvider) -> [PlanUtilizationSeriesHistory] {
+        if self.isSafeExternalSourceActive(for: provider) {
+            return []
+        }
         var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
         let originalProviderBuckets = providerBuckets
         let accountKey = self.resolvePlanUtilizationAccountKey(
@@ -45,6 +48,7 @@ extension UsageStore {
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
         guard provider == .codex || provider == .claude else { return true }
+        if self.isSafeExternalSourceActive(for: provider) { return true }
         return self.shouldShowRefreshingMenuCard(for: provider)
     }
 
@@ -58,6 +62,7 @@ extension UsageStore {
         async
     {
         guard provider == .codex || provider == .claude else { return }
+        guard !self.isSafeExternalSourceActive(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?

@@ -136,7 +136,8 @@ final class SettingsStore {
         let config = CodexBarConfigMigrator.loadOrMigrate(
             configStore: configStore,
             userDefaults: userDefaults,
-            stores: legacyStores)
+            stores: legacyStores,
+            protectedProviders: SafeExternalViewerMode.enabledProtectedProviders())
         self.userDefaults = userDefaults
         self.configStore = configStore
         self.config = config

@@ -1,3 +1,4 @@
+import CodexBarCore
 import Testing
 @testable import CodexBar
 
@@ -20,5 +21,15 @@ struct KeychainMigrationTests {
 
         let missing = expected.subtracting(items)
         #expect(missing.isEmpty, "Missing migration entries: \(missing.sorted())")
+    }
+
+    @Test
+    func `migration list excludes safe external protected providers`() {
+        let protected: Set<UsageProvider> = [.codex, .claude]
+        let items = Set(KeychainMigration.itemsToMigrate(protectedProviders: protected).map(\.label))
+
+        #expect(items.contains("com.steipete.CodexBar:codex-cookie") == false)
+        #expect(items.contains("com.steipete.CodexBar:claude-cookie") == false)
+        #expect(items.contains("com.steipete.CodexBar:cursor-cookie"))
     }
 }

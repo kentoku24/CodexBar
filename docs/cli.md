@@ -29,7 +29,11 @@ tar -xzf CodexBarCLI-v0.17.0-linux-x86_64.tar.gz
 
 ## Build
 - `./Scripts/package_app.sh` (or `./Scripts/compile_and_run.sh`) bundles `CodexBarCLI` into `CodexBar.app/Contents/Helpers/CodexBarCLI`.
+- The app bundle also includes `CodexBarSafeExporter` at `CodexBar.app/Contents/Helpers/CodexBarSafeExporter` for
+  external safe-usage export.
 - Standalone: `swift build -c release --product CodexBarCLI` (binary at `./.build/release/CodexBarCLI`).
+- Standalone safe exporter: `swift build -c release --product CodexBarSafeExporter`
+  (binary at `./.build/release/CodexBarSafeExporter`).
 - Dependencies: Swift 6.2+, Commander package (`https://github.com/steipete/Commander`).
 
 ## Configuration
@@ -106,6 +110,53 @@ codexbar --provider gemini --source api --format json --pretty
 KILO_API_KEY=... codexbar --provider kilo --source api --format json --pretty
 codexbar config validate --format json --pretty
 codexbar config dump --pretty
+CodexBarSafeExporter --providers codex,claude
+CodexBarSafeExporter --providers codex,claude --stdout --pretty
+CODEXBAR_SAFE_USAGE_PATH=/tmp/safe-usage.json CodexBarSafeExporter --providers codex,claude
+```
+
+## Safe external export
+Use `CodexBarSafeExporter` when CodexBar should behave like an untrusted viewer that never receives Codex or Claude
+tokens/cookies directly. The exporter fetches provider usage with the normal trusted credentials, then writes a
+sanitized JSON snapshot containing only remaining percentages and reset times.
+
+Snapshot behavior:
+- Default path: `~/Library/Application Support/com.steipete.codexbar/safe-usage.json`
+- Override path: set `CODEXBAR_SAFE_USAGE_PATH=/absolute/path/to/safe-usage.json`
+- File permissions: `0600`
+- Update strategy: atomic temp-file write then replace
+
+When the menubar app can read a safe snapshot entry for Codex or Claude, it treats that provider as a
+`safe-external` source and skips identity-bearing extras such as account email, credits, dashboard extras, plan
+utilization history, and historical pace datasets. If an explicit safe snapshot path is configured but the file is
+missing or unreadable, Codex and Claude fail closed instead of falling back to direct credential reads.
+
+Sample safe snapshot:
+```json
+{
+  "providers": [
+    {
+      "primaryRemainingPercent": 72,
+      "primaryResetsAt": "2026-03-30T05:15:00Z",
+      "provider": "codex",
+      "secondaryRemainingPercent": 41,
+      "secondaryResetsAt": "2026-04-03T00:00:00Z",
+      "tertiaryRemainingPercent": null,
+      "tertiaryResetsAt": null,
+      "updatedAt": "2026-03-30T03:34:56Z"
+    },
+    {
+      "primaryRemainingPercent": 88,
+      "primaryResetsAt": "2026-03-30T16:00:00Z",
+      "provider": "claude",
+      "secondaryRemainingPercent": 63,
+      "secondaryResetsAt": "2026-04-05T21:00:00Z",
+      "tertiaryRemainingPercent": 91,
+      "tertiaryResetsAt": "2026-04-05T21:00:00Z",
+      "updatedAt": "2026-03-30T03:34:56Z"
+    }
+  ]
+}
 ```
 
 ### Sample output (text)

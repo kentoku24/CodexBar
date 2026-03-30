@@ -31,8 +31,21 @@ enum KeychainMigration {
         MigrationItem(service: "com.steipete.CodexBar", account: "synthetic-api-key"),
     ]
 
+    static func itemsToMigrate(protectedProviders: Set<UsageProvider>) -> [MigrationItem] {
+        self.itemsToMigrate.filter { item in
+            switch item.account {
+            case "codex-cookie":
+                !protectedProviders.contains(.codex)
+            case "claude-cookie":
+                !protectedProviders.contains(.claude)
+            default:
+                true
+            }
+        }
+    }
+
     /// Run migration once per installation
-    static func migrateIfNeeded() {
+    static func migrateIfNeeded(protectedProviders: Set<UsageProvider> = []) {
         guard !KeychainAccessGate.isDisabled else {
             self.log.info("Keychain access disabled; skipping migration")
             return
@@ -44,7 +57,7 @@ enum KeychainMigration {
             var migratedCount = 0
             var errorCount = 0
 
-            for item in self.itemsToMigrate {
+            for item in self.itemsToMigrate(protectedProviders: protectedProviders) {
                 do {
                     if try self.migrateItem(item) {
                         migratedCount += 1

@@ -14,6 +14,18 @@ The OAuth API is the default app source when credentials are available; web acce
 
 ## Data sources + fallback order
 
+### Safe external viewer mode
+- If `~/Library/Application Support/com.steipete.codexbar/safe-usage.json` contains a Codex snapshot (or
+  `CODEXBAR_SAFE_USAGE_PATH` points at one), CodexBar treats Codex as a `safe-external` source.
+- If an explicit safe snapshot path is configured but missing or unreadable, Codex fails closed instead of falling
+  back to direct credential reads.
+- In that mode, CodexBar only reads sanitized remaining percentages plus reset times from the snapshot written by
+  `CodexBarSafeExporter`.
+- CodexBar does not refresh OAuth credentials, CLI RPC/PTY usage, credits, dashboard extras, plan history, or
+  historical pace while the safe snapshot is active.
+- Identity-bearing fields remain empty in the app snapshot (`accountEmail`, `loginMethod`, organization, dashboard
+  signed-in email).
+
 ### App default selection (debug menu disabled)
 1) OAuth API (auth.json credentials).
 2) CLI RPC, with CLI PTY fallback when needed.
