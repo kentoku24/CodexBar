@@ -36,8 +36,6 @@ enum KeychainMigration {
             switch item.account {
             case "codex-cookie":
                 !protectedProviders.contains(.codex)
-            case "claude-cookie":
-                !protectedProviders.contains(.claude)
             default:
                 true
             }

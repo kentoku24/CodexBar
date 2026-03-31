@@ -38,13 +38,13 @@ struct SafeExternalUsageSnapshotTests {
         let snapshot = SafeExternalUsageSnapshot(
             providers: [
                 SafeExternalProviderSnapshot(
-                    provider: .claude,
+                    provider: .codex,
                     primaryRemainingPercent: 88,
                     secondaryRemainingPercent: 63,
-                    tertiaryRemainingPercent: 91,
+                    tertiaryRemainingPercent: nil,
                     primaryResetsAt: Date(timeIntervalSince1970: 400),
                     secondaryResetsAt: Date(timeIntervalSince1970: 500),
-                    tertiaryResetsAt: Date(timeIntervalSince1970: 550),
+                    tertiaryResetsAt: nil,
                     updatedAt: Date(timeIntervalSince1970: 600)),
             ])
 

@@ -122,6 +122,15 @@ struct ProviderSettingsDescriptorTests {
         #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
         #expect(toggles.contains(where: { $0.id == "codex-historical-tracking" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "codex-usage-source" }))
+        #expect(usagePicker.options.map(\.title) == [
+            "Auto",
+            "OAuth API",
+            "CLI (RPC/PTY)",
+            "Local Usage File",
+        ])
+        store.lastSourceLabels[.codex] = "oauth"
+        #expect(usagePicker.trailingText?() == "Last success: oauth")
     }
 
     @Test
@@ -163,6 +172,15 @@ struct ProviderSettingsDescriptorTests {
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "claude-usage-source" }))
+        #expect(usagePicker.options.map(\.title) == [
+            "Auto",
+            "OAuth API",
+            "Web API (cookies)",
+            "CLI (PTY)",
+        ])
+        store.lastSourceLabels[.claude] = "oauth"
+        #expect(usagePicker.trailingText?() == "Last success: oauth")
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
         let optionIDs = Set(keychainPicker.options.map(\.id))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))

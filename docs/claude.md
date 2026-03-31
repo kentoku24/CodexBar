@@ -16,18 +16,6 @@ pending. For the exact current-state parity contract, see
 
 ## Data sources + selection order
 
-### Safe external viewer mode
-- If `~/Library/Application Support/com.steipete.codexbar/safe-usage.json` contains a Claude snapshot (or
-  `CODEXBAR_SAFE_USAGE_PATH` points at one), CodexBar treats Claude as a `safe-external` source.
-- If an explicit safe snapshot path is configured but missing or unreadable, Claude fails closed instead of falling
-  back to OAuth, web, or CLI reads.
-- In that mode, CodexBar only reads sanitized remaining percentages plus reset times from the snapshot written by
-  `CodexBarSafeExporter`.
-- CodexBar does not refresh OAuth/web/CLI usage, account identity, plan utilization history, or other account-linked
-  derived data while the safe snapshot is active.
-- The safe snapshot supports Claude session, weekly, and Opus remaining percentages without exposing tokens or
-  cookies to the viewer app.
-
 ### Default selection (debug menu disabled)
 - App runtime main pipeline: OAuth API → CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.

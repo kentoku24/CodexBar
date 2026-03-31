@@ -486,6 +486,30 @@ struct SettingsStoreProviderConfigTests {
     }
 
     @Test
+    func `persists codex local usage file source across instances`() throws {
+        let suite = "SettingsStoreTests-codex-local-usage-file"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        storeA.codexUsageDataSource = .localUsageFile
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.codexUsageDataSource == .localUsageFile)
+    }
+
+    @Test
     func `defaults kilo usage source to auto`() throws {
         let suite = "SettingsStoreTests-kilo-source"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -110,13 +110,13 @@ codexbar --provider gemini --source api --format json --pretty
 KILO_API_KEY=... codexbar --provider kilo --source api --format json --pretty
 codexbar config validate --format json --pretty
 codexbar config dump --pretty
-CodexBarSafeExporter --providers codex,claude
-CodexBarSafeExporter --providers codex,claude --stdout --pretty
-CODEXBAR_SAFE_USAGE_PATH=/tmp/safe-usage.json CodexBarSafeExporter --providers codex,claude
+CodexBarSafeExporter --providers codex
+CodexBarSafeExporter --providers codex --stdout --pretty
+CODEXBAR_SAFE_USAGE_PATH=/tmp/safe-usage.json CodexBarSafeExporter --providers codex
 ```
 
 ## Safe external export
-Use `CodexBarSafeExporter` when CodexBar should behave like an untrusted viewer that never receives Codex or Claude
+Use `CodexBarSafeExporter` when CodexBar should behave like an untrusted viewer that never receives Codex
 tokens/cookies directly. The exporter fetches provider usage with the normal trusted credentials, then writes a
 sanitized JSON snapshot containing only remaining percentages and reset times.
 
@@ -126,10 +126,10 @@ Snapshot behavior:
 - File permissions: `0600`
 - Update strategy: atomic temp-file write then replace
 
-When the menubar app can read a safe snapshot entry for Codex or Claude, it treats that provider as a
+When the menubar app can read a safe snapshot entry for Codex, it treats that provider as a
 `safe-external` source and skips identity-bearing extras such as account email, credits, dashboard extras, plan
 utilization history, and historical pace datasets. If an explicit safe snapshot path is configured but the file is
-missing or unreadable, Codex and Claude fail closed instead of falling back to direct credential reads.
+missing or unreadable, Codex fails closed instead of falling back to direct credential reads.
 
 Sample safe snapshot:
 ```json
@@ -143,16 +143,6 @@ Sample safe snapshot:
       "secondaryResetsAt": "2026-04-03T00:00:00Z",
       "tertiaryRemainingPercent": null,
       "tertiaryResetsAt": null,
-      "updatedAt": "2026-03-30T03:34:56Z"
-    },
-    {
-      "primaryRemainingPercent": 88,
-      "primaryResetsAt": "2026-03-30T16:00:00Z",
-      "provider": "claude",
-      "secondaryRemainingPercent": 63,
-      "secondaryResetsAt": "2026-04-05T21:00:00Z",
-      "tertiaryRemainingPercent": 91,
-      "tertiaryResetsAt": "2026-04-05T21:00:00Z",
       "updatedAt": "2026-03-30T03:34:56Z"
     }
   ]

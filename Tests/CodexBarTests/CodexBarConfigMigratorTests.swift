@@ -9,12 +9,12 @@ struct CodexBarConfigMigratorTests {
         let protected = CodexBarConfigMigrator.legacySecretProtectedProviders(for: requested)
 
         #expect(protected.contains(.codex))
-        #expect(protected.contains(.claude))
+        #expect(protected.contains(.claude) == false)
 
         let migratedCookies = CodexBarConfigMigrator.legacyCookieProvidersToMigrate(
             protectedProviders: protected)
         #expect(migratedCookies.contains(.codex) == false)
-        #expect(migratedCookies.contains(.claude) == false)
+        #expect(migratedCookies.contains(.claude))
         #expect(migratedCookies.contains(.cursor))
     }
 }

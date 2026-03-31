@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct SafeExternalUsageStoreTests {
     @Test
-    func `safe snapshot applies codex and claude without identity leakage`() {
+    func `safe snapshot applies supported providers without identity leakage`() {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-apply")
         let store = UsageStore(
             fetcher: UsageFetcher(),
@@ -38,8 +38,7 @@ struct SafeExternalUsageStoreTests {
         store.applySafeExternalUsageSnapshot(snapshot)
 
         #expect(store.snapshot(for: .codex)?.primary?.remainingPercent == 72)
-        #expect(store.snapshot(for: .claude)?.secondary?.remainingPercent == 63)
-        #expect(store.snapshot(for: .claude)?.tertiary?.remainingPercent == 91)
+        #expect(store.snapshot(for: .claude) == nil)
         #expect(store.snapshot(for: .codex)?.identity == nil)
         #expect(store.sourceLabel(for: .codex) == "safe-external")
         #expect(store.error(for: .codex) == nil)
@@ -48,6 +47,8 @@ struct SafeExternalUsageStoreTests {
     @Test
     func `safe snapshot only overrides providers present in file`() async throws {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-subset")
+        settings.codexUsageDataSource = .localUsageFile
+        settings.claudeUsageDataSource = .auto
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -94,6 +95,35 @@ struct SafeExternalUsageStoreTests {
             #expect(store.snapshot(for: .codex)?.primary?.remainingPercent == 72)
             #expect(store.snapshot(for: .claude)?.accountEmail(for: .claude) == "claude@example.com")
             #expect(store.error(for: .claude) == nil)
+        }
+    }
+
+    @Test
+    func `auto source ignores local usage file snapshot`() async throws {
+        let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-auto-ignores-local-file")
+        settings.codexUsageDataSource = .auto
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let safeSnapshot = SafeExternalUsageSnapshot(
+            providers: [
+                SafeExternalProviderSnapshot(
+                    provider: .claude,
+                    primaryRemainingPercent: 88,
+                    secondaryRemainingPercent: 63,
+                    tertiaryRemainingPercent: nil,
+                    primaryResetsAt: Date(timeIntervalSince1970: 400),
+                    secondaryResetsAt: Date(timeIntervalSince1970: 500),
+                    tertiaryResetsAt: nil,
+                    updatedAt: Date(timeIntervalSince1970: 600)),
+            ])
+
+        try await Self.withSafeExternalSnapshot(safeSnapshot) {
+            #expect(store.shouldUseSafeExternalSource(for: .codex) == false)
+            let applied = await store.refreshProviderFromSafeExternalSnapshotIfNeeded(.codex)
+            #expect(applied == false)
         }
     }
 
@@ -150,8 +180,10 @@ struct SafeExternalUsageStoreTests {
     }
 
     @Test
-    func `credential free viewer mode activates only for providers present in safe snapshot`() async throws {
+    func `credential free viewer mode activates only when local usage file source is selected`() async throws {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-viewer-mode")
+        settings.codexUsageDataSource = .localUsageFile
+        settings.claudeUsageDataSource = .auto
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -160,14 +192,14 @@ struct SafeExternalUsageStoreTests {
         let safeSnapshot = SafeExternalUsageSnapshot(
             providers: [
                 SafeExternalProviderSnapshot(
-                    provider: .codex,
-                    primaryRemainingPercent: 72,
-                    secondaryRemainingPercent: 41,
+                    provider: .claude,
+                    primaryRemainingPercent: 88,
+                    secondaryRemainingPercent: 63,
                     tertiaryRemainingPercent: nil,
-                    primaryResetsAt: Date(timeIntervalSince1970: 100),
-                    secondaryResetsAt: Date(timeIntervalSince1970: 200),
+                    primaryResetsAt: Date(timeIntervalSince1970: 400),
+                    secondaryResetsAt: Date(timeIntervalSince1970: 500),
                     tertiaryResetsAt: nil,
-                    updatedAt: Date(timeIntervalSince1970: 300)),
+                    updatedAt: Date(timeIntervalSince1970: 600)),
             ])
 
         try await Self.withSafeExternalSnapshot(safeSnapshot) {
@@ -178,15 +210,44 @@ struct SafeExternalUsageStoreTests {
     }
 
     @Test
+    func `local usage file source fails closed when selected provider is absent from snapshot`() async throws {
+        let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-provider-missing")
+        settings.codexUsageDataSource = .localUsageFile
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let safeSnapshot = SafeExternalUsageSnapshot(
+            providers: [
+                SafeExternalProviderSnapshot(
+                    provider: .claude,
+                    primaryRemainingPercent: 88,
+                    secondaryRemainingPercent: 63,
+                    tertiaryRemainingPercent: nil,
+                    primaryResetsAt: Date(timeIntervalSince1970: 400),
+                    secondaryResetsAt: Date(timeIntervalSince1970: 500),
+                    tertiaryResetsAt: nil,
+                    updatedAt: Date(timeIntervalSince1970: 600)),
+            ])
+
+        try await Self.withSafeExternalSnapshot(safeSnapshot) {
+            #expect(store.shouldUseSafeExternalSource(for: .codex) == true)
+            let applied = await store.refreshProviderFromSafeExternalSnapshotIfNeeded(.codex)
+            #expect(applied == true)
+            #expect(store.snapshot(for: .codex) == nil)
+            #expect(store.error(for: .codex) == "Local usage file does not contain codex data.")
+        }
+    }
+
+    @Test
     func `token usage refresh clears safe external provider token state`() async throws {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-token-state")
+        settings.codexUsageDataSource = .localUsageFile
         settings.costUsageEnabled = true
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
             settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
-        }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
         }
 
         let store = UsageStore(
@@ -203,17 +264,7 @@ struct SafeExternalUsageStoreTests {
                 daily: [],
                 updatedAt: Date(timeIntervalSince1970: 999)),
             provider: .codex)
-        store._setTokenSnapshotForTesting(
-            CostUsageTokenSnapshot(
-                sessionTokens: 321,
-                sessionCostUSD: 0.21,
-                last30DaysTokens: 654,
-                last30DaysCostUSD: 3.21,
-                daily: [],
-                updatedAt: Date(timeIntervalSince1970: 1000)),
-            provider: .claude)
         store._setTokenErrorForTesting("stale-codex", provider: .codex)
-        store._setTokenErrorForTesting("stale-claude", provider: .claude)
 
         let safeSnapshot = SafeExternalUsageSnapshot(
             providers: [
@@ -226,44 +277,35 @@ struct SafeExternalUsageStoreTests {
                     secondaryResetsAt: Date(timeIntervalSince1970: 200),
                     tertiaryResetsAt: nil,
                     updatedAt: Date(timeIntervalSince1970: 300)),
-                SafeExternalProviderSnapshot(
-                    provider: .claude,
-                    primaryRemainingPercent: 88,
-                    secondaryRemainingPercent: 63,
-                    tertiaryRemainingPercent: nil,
-                    primaryResetsAt: Date(timeIntervalSince1970: 400),
-                    secondaryResetsAt: Date(timeIntervalSince1970: 500),
-                    tertiaryResetsAt: nil,
-                    updatedAt: Date(timeIntervalSince1970: 600)),
             ])
 
         try await Self.withSafeExternalSnapshot(safeSnapshot) {
             await store._refreshTokenUsageForTesting(.codex, force: true)
-            await store._refreshTokenUsageForTesting(.claude, force: true)
 
             #expect(store.tokenSnapshot(for: .codex) == nil)
-            #expect(store.tokenSnapshot(for: .claude) == nil)
             #expect(store.tokenError(for: .codex) == "Cost usage unavailable in safe external mode.")
-            #expect(store.tokenError(for: .claude) == "Cost usage unavailable in safe external mode.")
         }
     }
 
     @Test
-    func `credential free viewer mode protects codex and claude when explicit safe path is missing`() async throws {
+    func `credential free viewer mode protects codex when explicit safe path is missing`() async throws {
+        let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-explicit-missing")
+        settings.codexUsageDataSource = .localUsageFile
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("safe-external-missing-\(UUID().uuidString).json")
             .path
 
         try await Self.withSafeExternalPath(missingPath) {
-            #expect(SafeExternalViewerMode.isEnabled(for: .codex) == true)
-            #expect(SafeExternalViewerMode.isEnabled(for: .claude) == true)
-            #expect(SafeExternalViewerMode.isEnabled(for: .vertexai) == false)
+            #expect(SafeExternalViewerMode.isEnabled(for: .codex, settings: settings) == true)
+            #expect(SafeExternalViewerMode.isEnabled(for: .claude, settings: settings) == false)
+            #expect(SafeExternalViewerMode.isEnabled(for: .vertexai, settings: settings) == false)
         }
     }
 
     @Test
     func `missing explicit safe path hides persisted plan utilization history`() async throws {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-missing-plan-history")
+        settings.codexUsageDataSource = .localUsageFile
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -294,6 +336,7 @@ struct SafeExternalUsageStoreTests {
     @Test
     func `account info accessor hides codex account in safe external mode`() async throws {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-account-info")
+        settings.codexUsageDataSource = .localUsageFile
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),

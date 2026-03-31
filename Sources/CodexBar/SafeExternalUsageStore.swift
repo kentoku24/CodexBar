@@ -7,33 +7,35 @@ extension UsageStore {
     nonisolated static let safeExternalTokenUsageMessage = "Cost usage unavailable in safe external mode."
 
     func shouldUseSafeExternalSource(for provider: UsageProvider) -> Bool {
-        guard self.isCredentialFreeViewerModeEnabled(for: provider) else { return false }
-
-        switch self.safeExternalSnapshotResolution() {
-        case .inactive:
-            return false
-        case let .active(snapshot):
-            return snapshot.providerSnapshot(for: provider) != nil
-        case .error:
-            return true
-        }
+        self.isCredentialFreeViewerModeEnabled(for: provider)
     }
 
     func applySafeExternalUsageSnapshot(_ snapshot: SafeExternalUsageSnapshot) {
-        for providerSnapshot in snapshot.providers {
+        for providerSnapshot in snapshot.providers
+            where Self.safeExternalProviders.contains(providerSnapshot.provider)
+        {
             self.applySafeExternalProviderSnapshot(providerSnapshot)
         }
     }
 
     func refreshProviderFromSafeExternalSnapshotIfNeeded(_ provider: UsageProvider) async -> Bool {
-        guard Self.safeExternalProviders.contains(provider) else { return false }
+        guard Self.safeExternalProviders.contains(provider),
+              self.shouldUseSafeExternalSource(for: provider)
+        else {
+            return false
+        }
 
         switch self.safeExternalSnapshotResolution() {
         case .inactive:
-            return false
+            let path = SafeExternalUsageSnapshotStore.defaultFileURL()?.path ?? "unknown"
+            self.applySafeExternalUsageError(provider: provider, message: "Local usage file not found at \(path).")
+            return true
         case let .active(snapshot):
             guard let providerSnapshot = snapshot.providerSnapshot(for: provider) else {
-                return false
+                self.applySafeExternalUsageError(
+                    provider: provider,
+                    message: "Local usage file does not contain \(provider.rawValue) data.")
+                return true
             }
             self.applySafeExternalProviderSnapshot(providerSnapshot)
             return true
@@ -44,20 +46,11 @@ extension UsageStore {
     }
 
     func isCredentialFreeViewerModeEnabled(for provider: UsageProvider) -> Bool {
-        SafeExternalViewerMode.isEnabled(for: provider)
+        SafeExternalViewerMode.isEnabled(for: provider, settings: self.settings)
     }
 
     func isSafeExternalSourceActive(for provider: UsageProvider) -> Bool {
-        guard self.isCredentialFreeViewerModeEnabled(for: provider) else { return false }
-
-        return switch self.safeExternalSnapshotResolution() {
-        case let .active(snapshot):
-            snapshot.providerSnapshot(for: provider) != nil
-        case .error:
-            true
-        case .inactive:
-            false
-        }
+        self.isCredentialFreeViewerModeEnabled(for: provider)
     }
 
     private func applySafeExternalProviderSnapshot(_ providerSnapshot: SafeExternalProviderSnapshot) {
@@ -84,8 +77,6 @@ extension UsageStore {
 
         if provider == .codex {
             self.clearCodexSensitiveDerivedState()
-        } else if provider == .claude {
-            self.planUtilizationHistory[.claude]?.preferredAccountKey = nil
         }
     }
 
@@ -99,15 +90,11 @@ extension UsageStore {
     private func safeExternalSnapshotResolution() -> SafeExternalSnapshotResolution {
         do {
             guard let snapshot = try SafeExternalUsageSnapshotStore.load() else {
-                if SafeExternalViewerMode.isExplicitPathConfigured() {
-                    let path = SafeExternalUsageSnapshotStore.defaultFileURL()?.path ?? "unknown"
-                    return .error("Safe external usage file not found at \(path).")
-                }
                 return .inactive
             }
             return .active(snapshot)
         } catch {
-            return .error("Safe external usage file could not be read: \(error.localizedDescription)")
+            return .error("Local usage file could not be read: \(error.localizedDescription)")
         }
     }
 

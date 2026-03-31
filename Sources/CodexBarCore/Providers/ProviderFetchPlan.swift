@@ -11,6 +11,7 @@ public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
     case cli
     case oauth
     case api
+    case localFile
 
     public var usesWeb: Bool {
         self == .auto || self == .web

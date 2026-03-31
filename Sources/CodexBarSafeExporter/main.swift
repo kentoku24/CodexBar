@@ -59,10 +59,9 @@ struct ExporterCommand {
     let destination: Destination
     let pretty: Bool
     let codexFetcher: UsageFetcher
-    let browserDetection: BrowserDetection
 
     init(arguments: [String]) throws {
-        var providers: [UsageProvider] = [.codex, .claude]
+        var providers: [UsageProvider] = [.codex]
         var destination: Destination?
         var pretty = false
 
@@ -104,7 +103,6 @@ struct ExporterCommand {
         }
         self.pretty = pretty
         self.codexFetcher = UsageFetcher()
-        self.browserDetection = BrowserDetection()
     }
 
     func run() async throws -> SafeExternalUsageSnapshot {
@@ -115,8 +113,6 @@ struct ExporterCommand {
             switch provider {
             case .codex:
                 try await snapshots.append(self.fetchCodex())
-            case .claude:
-                try await snapshots.append(self.fetchClaude())
             default:
                 throw ExporterCommandError.invalidArguments(
                     "Unsupported provider for safe export: \(provider.rawValue)")
@@ -161,40 +157,6 @@ struct ExporterCommand {
         }
     }
 
-    private func fetchClaude() async throws -> SafeExternalProviderSnapshot {
-        do {
-            let oauthFetcher = ClaudeUsageFetcher(
-                browserDetection: self.browserDetection,
-                runtime: .app,
-                dataSource: .oauth)
-            let usage = try await oauthFetcher.loadLatestUsage(model: "sonnet")
-            return SafeExternalProviderSnapshot(
-                provider: .claude,
-                primaryRemainingPercent: usage.primary.remainingPercent,
-                secondaryRemainingPercent: usage.secondary?.remainingPercent,
-                tertiaryRemainingPercent: usage.opus?.remainingPercent,
-                primaryResetsAt: usage.primary.resetsAt,
-                secondaryResetsAt: usage.secondary?.resetsAt,
-                tertiaryResetsAt: usage.opus?.resetsAt,
-                updatedAt: usage.updatedAt)
-        } catch {
-            let cliFetcher = ClaudeUsageFetcher(
-                browserDetection: self.browserDetection,
-                runtime: .app,
-                dataSource: .cli)
-            let usage = try await cliFetcher.loadLatestUsage(model: "sonnet")
-            return SafeExternalProviderSnapshot(
-                provider: .claude,
-                primaryRemainingPercent: usage.primary.remainingPercent,
-                secondaryRemainingPercent: usage.secondary?.remainingPercent,
-                tertiaryRemainingPercent: usage.opus?.remainingPercent,
-                primaryResetsAt: usage.primary.resetsAt,
-                secondaryResetsAt: usage.secondary?.resetsAt,
-                tertiaryResetsAt: usage.opus?.resetsAt,
-                updatedAt: usage.updatedAt)
-        }
-    }
-
     static func parseProviders(_ raw: String) throws -> [UsageProvider] {
         let tokens = raw
             .split(separator: ",", omittingEmptySubsequences: false)
@@ -207,7 +169,9 @@ struct ExporterCommand {
         providers.reserveCapacity(tokens.count)
 
         for token in tokens {
-            guard let provider = UsageProvider(rawValue: token) else {
+            guard let provider = UsageProvider(rawValue: token),
+                  provider == .codex
+            else {
                 throw ExporterCommandError.invalidArguments("Unknown provider in --providers: \(token)")
             }
             providers.append(provider)
@@ -228,7 +192,7 @@ enum ExporterCommandError: LocalizedError {
                 "CodexBarSafeExporter",
                 "",
                 "Usage:",
-                "  CodexBarSafeExporter [--providers codex,claude] [--output /path/to/safe-usage.json] [--pretty]",
+                "  CodexBarSafeExporter [--providers codex] [--output /path/to/safe-usage.json] [--pretty]",
                 "  CodexBarSafeExporter --stdout --pretty",
             ].joined(separator: "\n")
         case let .invalidArguments(message):

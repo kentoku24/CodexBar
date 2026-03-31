@@ -357,7 +357,7 @@ struct CodexBarConfigMigrator {
 
 extension CodexBarConfigMigrator {
     static func legacySecretProtectedProviders(for protectedProviders: Set<UsageProvider>) -> Set<UsageProvider> {
-        protectedProviders.intersection([.codex, .claude])
+        protectedProviders.intersection([.codex])
     }
 
     static func legacyCookieProvidersToMigrate(protectedProviders: Set<UsageProvider>) -> [UsageProvider] {

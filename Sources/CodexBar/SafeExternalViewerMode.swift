@@ -2,44 +2,55 @@ import CodexBarCore
 import Foundation
 
 enum SafeExternalViewerMode {
-    static let supportedProviders: Set<UsageProvider> = [.codex, .claude]
+    static let supportedProviders: Set<UsageProvider> = [.codex]
+
+    @MainActor
+    static func isEnabled(
+        for provider: UsageProvider,
+        settings: SettingsStore) -> Bool
+    {
+        self.enabledProtectedProviders(settings: settings).contains(provider)
+    }
+
+    @MainActor
+    static func enabledProtectedProviders(
+        settings: SettingsStore) -> Set<UsageProvider>
+    {
+        self.enabledProtectedProviders(codexSource: settings.codexUsageDataSource)
+    }
 
     static func isEnabled(
         for provider: UsageProvider,
-        env: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+        config: CodexBarConfig? = nil,
+        configStore: CodexBarConfigStore = CodexBarConfigStore()) -> Bool
     {
-        self.enabledProtectedProviders(env: env).contains(provider)
+        self.enabledProtectedProviders(config: config, configStore: configStore).contains(provider)
     }
 
     static func enabledProtectedProviders(
-        env: [String: String] = ProcessInfo.processInfo.environment) -> Set<UsageProvider>
+        config: CodexBarConfig? = nil,
+        configStore: CodexBarConfigStore = CodexBarConfigStore()) -> Set<UsageProvider>
     {
-        let explicitPathConfigured = self.isExplicitPathConfigured(env: env)
-
-        do {
-            if let snapshot = try SafeExternalUsageSnapshotStore.load(env: env) {
-                return Set(snapshot.providers.map(\.provider)).intersection(self.supportedProviders)
-            }
-            if explicitPathConfigured {
-                return self.supportedProviders
-            }
-            return []
-        } catch {
-            if explicitPathConfigured || SafeExternalUsageSnapshotStore.fileExists(env: env) {
-                return self.supportedProviders
-            }
-            return []
+        if let config {
+            return self.enabledProtectedProviders(config: config)
         }
+        let loadedConfig = try? configStore.load()
+        return self.enabledProtectedProviders(config: loadedConfig ?? CodexBarConfig.makeDefault())
     }
 
-    static func isExplicitPathConfigured(
-        env: [String: String] = ProcessInfo.processInfo.environment) -> Bool
-    {
-        guard let override = env[SafeExternalUsageSnapshotStore.environmentPathKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        else {
-            return false
+    static func enabledProtectedProviders(config: CodexBarConfig) -> Set<UsageProvider> {
+        var providers: Set<UsageProvider> = []
+        if config.providerConfig(for: .codex)?.source == .localFile {
+            providers.insert(.codex)
         }
-        return !override.isEmpty
+        return providers.intersection(self.supportedProviders)
+    }
+
+    private static func enabledProtectedProviders(codexSource: CodexUsageDataSource) -> Set<UsageProvider> {
+        var providers: Set<UsageProvider> = []
+        if codexSource == .localUsageFile {
+            providers.insert(.codex)
+        }
+        return providers
     }
 }

@@ -32,7 +32,7 @@ public enum CodexProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web, .cli, .oauth],
+                sourceModes: [.auto, .web, .cli, .oauth, .localFile],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "codex",
@@ -55,6 +55,8 @@ public enum CodexProviderDescriptor {
                 return [cli]
             case .api:
                 return []
+            case .localFile:
+                return []
             case .auto:
                 return [web, cli]
             }
@@ -67,6 +69,8 @@ public enum CodexProviderDescriptor {
             case .web:
                 return [web]
             case .api:
+                return []
+            case .localFile:
                 return []
             case .auto:
                 return [oauth, cli]

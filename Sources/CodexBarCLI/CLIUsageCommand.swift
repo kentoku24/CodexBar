@@ -434,7 +434,7 @@ extension CodexBarCLI {
             true
         case .auto:
             ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes.contains(.web)
-        case .cli, .oauth, .api:
+        case .cli, .oauth, .api, .localFile:
             false
         }
     }

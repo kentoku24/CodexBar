@@ -43,7 +43,7 @@ struct CodexBarApp: App {
         let settings = SettingsStore()
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
-        let account = if SafeExternalViewerMode.isEnabled(for: .codex) {
+        let account = if SafeExternalViewerMode.isEnabled(for: .codex, settings: settings) {
             AccountInfo(email: nil, plan: nil)
         } else {
             fetcher.loadAccountInfo()
@@ -332,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fallbackSettings = SettingsStore()
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
-        let fallbackAccount = if SafeExternalViewerMode.isEnabled(for: .codex) {
+        let fallbackAccount = if SafeExternalViewerMode.isEnabled(for: .codex, settings: fallbackSettings) {
             AccountInfo(email: nil, plan: nil)
         } else {
             fetcher.loadAccountInfo()

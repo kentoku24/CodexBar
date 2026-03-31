@@ -9,10 +9,12 @@ extension UsageStore {
 
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
         guard provider == .codex || provider == .claude else { return nil }
-        guard !self.isSafeExternalSourceActive(for: provider) else { return nil }
         guard window.remainingPercent > 0 else { return nil }
+        let isSafeExternalSource = self.isSafeExternalSourceActive(for: provider)
         let resolved: UsagePace?
-        if self.settings.historicalTrackingEnabled {
+        if isSafeExternalSource {
+            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+        } else if self.settings.historicalTrackingEnabled {
             if provider == .codex {
                 let codexAccountKey = self.codexHistoricalAccountKey()
                 if self.codexHistoricalDatasetAccountKey == codexAccountKey,

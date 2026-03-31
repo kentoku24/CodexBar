@@ -29,7 +29,7 @@ struct KeychainMigrationTests {
         let items = Set(KeychainMigration.itemsToMigrate(protectedProviders: protected).map(\.label))
 
         #expect(items.contains("com.steipete.CodexBar:codex-cookie") == false)
-        #expect(items.contains("com.steipete.CodexBar:claude-cookie") == false)
+        #expect(items.contains("com.steipete.CodexBar:claude-cookie"))
         #expect(items.contains("com.steipete.CodexBar:cursor-cookie"))
     }
 }
