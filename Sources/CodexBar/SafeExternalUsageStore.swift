@@ -25,6 +25,8 @@ extension UsageStore {
             return false
         }
 
+        await self.refreshSafeExternalSnapshotFileIfNeeded(for: provider)
+
         switch self.safeExternalSnapshotResolution() {
         case .inactive:
             let path = SafeExternalUsageSnapshotStore.defaultFileURL()?.path ?? "unknown"
@@ -42,6 +44,20 @@ extension UsageStore {
         case let .error(message):
             self.applySafeExternalUsageError(provider: provider, message: message)
             return true
+        }
+    }
+
+    private func refreshSafeExternalSnapshotFileIfNeeded(for provider: UsageProvider) async {
+        let environment = ProcessInfo.processInfo.environment
+        let destinationURL = SafeExternalUsageSnapshotStore.defaultFileURL(env: environment)
+
+        do {
+            try await self.safeExternalSnapshotRefresher.refreshIfNeeded(
+                for: provider,
+                destinationURL: destinationURL,
+                environment: environment)
+        } catch {
+            // Keep Local Usage File fail-closed semantics, but prefer the freshest readable snapshot if one exists.
         }
     }
 

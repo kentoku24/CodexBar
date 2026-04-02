@@ -140,6 +140,7 @@ final class UsageStore {
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
+    @ObservationIgnored let safeExternalSnapshotRefresher: any SafeExternalSnapshotRefreshing
     @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored private let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
@@ -177,6 +178,7 @@ final class UsageStore {
         claudeFetcher: (any ClaudeUsageFetching)? = nil,
         costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
+        safeExternalSnapshotRefresher: (any SafeExternalSnapshotRefreshing)? = nil,
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
@@ -188,6 +190,7 @@ final class UsageStore {
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
+        self.safeExternalSnapshotRefresher = safeExternalSnapshotRefresher ?? SafeExternalSnapshotRefresher()
         self.registry = registry
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.planUtilizationHistoryStore = planUtilizationHistoryStore

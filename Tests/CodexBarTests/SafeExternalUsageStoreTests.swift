@@ -3,8 +3,59 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 @MainActor
 struct SafeExternalUsageStoreTests {
+    @Test
+    func `local usage file refresh updates snapshot before loading`() async throws {
+        let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-refreshes-local-file")
+        settings.codexUsageDataSource = .localUsageFile
+
+        let refreshedSnapshot = SafeExternalUsageSnapshot(
+            providers: [
+                SafeExternalProviderSnapshot(
+                    provider: .codex,
+                    primaryRemainingPercent: 55,
+                    secondaryRemainingPercent: 25,
+                    tertiaryRemainingPercent: nil,
+                    primaryResetsAt: Date(timeIntervalSince1970: 1000),
+                    secondaryResetsAt: Date(timeIntervalSince1970: 2000),
+                    tertiaryResetsAt: nil,
+                    updatedAt: Date(timeIntervalSince1970: 3000)),
+            ])
+        let refresher = TestSafeExternalSnapshotRefresher { provider in
+            #expect(provider == .codex)
+            return refreshedSnapshot
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            safeExternalSnapshotRefresher: refresher,
+            startupBehavior: .testing)
+        let staleSnapshot = SafeExternalUsageSnapshot(
+            providers: [
+                SafeExternalProviderSnapshot(
+                    provider: .codex,
+                    primaryRemainingPercent: 90,
+                    secondaryRemainingPercent: 80,
+                    tertiaryRemainingPercent: nil,
+                    primaryResetsAt: Date(timeIntervalSince1970: 100),
+                    secondaryResetsAt: Date(timeIntervalSince1970: 200),
+                    tertiaryResetsAt: nil,
+                    updatedAt: Date(timeIntervalSince1970: 300)),
+            ])
+
+        try await Self.withSafeExternalSnapshot(staleSnapshot) {
+            let applied = await store.refreshProviderFromSafeExternalSnapshotIfNeeded(UsageProvider.codex)
+
+            #expect(applied == true)
+            #expect(refresher.providers == [.codex])
+            #expect(store.snapshot(for: .codex)?.primary?.remainingPercent == 55)
+            #expect(store.snapshot(for: .codex)?.updatedAt == Date(timeIntervalSince1970: 3000))
+        }
+    }
+
     @Test
     func `safe snapshot applies supported providers without identity leakage`() {
         let settings = Self.makeSettingsStore(suite: "SafeExternalUsageStoreTests-apply")
@@ -401,5 +452,25 @@ struct SafeExternalUsageStoreTests {
         }
 
         return try await operation()
+    }
+}
+
+private final class TestSafeExternalSnapshotRefresher: SafeExternalSnapshotRefreshing, @unchecked Sendable {
+    private let makeSnapshot: @Sendable (UsageProvider) async throws -> SafeExternalUsageSnapshot
+    private(set) var providers: [UsageProvider] = []
+
+    init(makeSnapshot: @escaping @Sendable (UsageProvider) async throws -> SafeExternalUsageSnapshot) {
+        self.makeSnapshot = makeSnapshot
+    }
+
+    func refreshIfNeeded(
+        for provider: UsageProvider,
+        destinationURL: URL?,
+        environment: [String: String]) async throws
+    {
+        self.providers.append(provider)
+        let snapshot = try await self.makeSnapshot(provider)
+        let url = try #require(destinationURL)
+        try SafeExternalUsageSnapshotStore.save(snapshot, to: url)
     }
 }
