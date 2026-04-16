@@ -29,7 +29,8 @@ struct CodexBarConfigMigrator {
     static func loadOrMigrate(
         configStore: CodexBarConfigStore,
         userDefaults: UserDefaults,
-        stores: LegacyStores) -> CodexBarConfig
+        stores: LegacyStores,
+        protectedProviders: Set<UsageProvider> = []) -> CodexBarConfig
     {
         let log = CodexBarLog.logger(LogCategories.configMigration)
         let existing = try? configStore.load()
@@ -41,7 +42,12 @@ struct CodexBarConfigMigrator {
         }
 
         self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
-        self.migrateLegacySecrets(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
+        self.migrateLegacySecrets(
+            userDefaults: userDefaults,
+            stores: stores,
+            protectedProviders: protectedProviders,
+            config: &config,
+            state: &state)
         self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
 
         if state.didUpdate {
@@ -53,7 +59,11 @@ struct CodexBarConfigMigrator {
         }
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {
-            self.clearLegacyStores(stores: stores, sawAccounts: state.sawLegacyAccounts, log: log)
+            self.clearLegacyStores(
+                stores: stores,
+                protectedProviders: protectedProviders,
+                sawAccounts: state.sawLegacyAccounts,
+                log: log)
         }
 
         return config.normalized()
@@ -78,6 +88,7 @@ struct CodexBarConfigMigrator {
     private static func migrateLegacySecrets(
         userDefaults: UserDefaults,
         stores: LegacyStores,
+        protectedProviders: Set<UsageProvider>,
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
@@ -92,14 +103,7 @@ struct CodexBarConfigMigrator {
             state: &state)
 
         self.migrateCookieProviders(
-            [
-                (.codex, stores.codexCookieStore.loadCookieHeader),
-                (.claude, stores.claudeCookieStore.loadCookieHeader),
-                (.cursor, stores.cursorCookieStore.loadCookieHeader),
-                (.factory, stores.factoryCookieStore.loadCookieHeader),
-                (.augment, stores.augmentCookieStore.loadCookieHeader),
-                (.amp, stores.ampCookieStore.loadCookieHeader),
-            ],
+            self.legacyCookieLoaders(stores: stores, protectedProviders: protectedProviders),
             config: &config,
             state: &state)
 
@@ -276,6 +280,7 @@ struct CodexBarConfigMigrator {
 
     private static func clearLegacyStores(
         stores: LegacyStores,
+        protectedProviders: Set<UsageProvider>,
         sawAccounts: Bool,
         log: CodexBarLogger)
     {
@@ -286,8 +291,12 @@ struct CodexBarConfigMigrator {
             try stores.minimaxAPITokenStore.storeToken(nil)
             try stores.kimiTokenStore.storeToken(nil)
             try stores.kimiK2TokenStore.storeToken(nil)
-            try stores.codexCookieStore.storeCookieHeader(nil)
-            try stores.claudeCookieStore.storeCookieHeader(nil)
+            if !protectedProviders.contains(.codex) {
+                try stores.codexCookieStore.storeCookieHeader(nil)
+            }
+            if !protectedProviders.contains(.claude) {
+                try stores.claudeCookieStore.storeCookieHeader(nil)
+            }
             try stores.cursorCookieStore.storeCookieHeader(nil)
             try stores.opencodeCookieStore.storeCookieHeader(nil)
             try stores.factoryCookieStore.storeCookieHeader(nil)
@@ -343,5 +352,32 @@ struct CodexBarConfigMigrator {
             }
         }
         return updated
+    }
+}
+
+extension CodexBarConfigMigrator {
+    static func legacySecretProtectedProviders(for protectedProviders: Set<UsageProvider>) -> Set<UsageProvider> {
+        protectedProviders.intersection([.codex])
+    }
+
+    static func legacyCookieProvidersToMigrate(protectedProviders: Set<UsageProvider>) -> [UsageProvider] {
+        let protected = self.legacySecretProtectedProviders(for: protectedProviders)
+        return [.codex, .claude, .cursor, .factory, .augment, .amp].filter { !protected.contains($0) }
+    }
+
+    private static func legacyCookieLoaders(
+        stores: LegacyStores,
+        protectedProviders: Set<UsageProvider>) -> [(UsageProvider, () throws -> String?)]
+    {
+        let loaders: [(UsageProvider, () throws -> String?)] = [
+            (.codex, stores.codexCookieStore.loadCookieHeader),
+            (.claude, stores.claudeCookieStore.loadCookieHeader),
+            (.cursor, stores.cursorCookieStore.loadCookieHeader),
+            (.factory, stores.factoryCookieStore.loadCookieHeader),
+            (.augment, stores.augmentCookieStore.loadCookieHeader),
+            (.amp, stores.ampCookieStore.loadCookieHeader),
+        ]
+        let allowed = Set(self.legacyCookieProvidersToMigrate(protectedProviders: protectedProviders))
+        return loaders.filter { allowed.contains($0.0) }
     }
 }

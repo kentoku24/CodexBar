@@ -272,6 +272,9 @@ install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
 if [[ -n "$(resolve_binary_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
   install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
 fi
+if [[ -n "$(resolve_binary_path "CodexBarSafeExporter" "${ARCH_LIST[0]}")" ]]; then
+  install_binary "CodexBarSafeExporter" "$APP/Contents/Helpers/CodexBarSafeExporter"
+fi
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
 if [[ -n "$(resolve_binary_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
   install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
@@ -376,6 +379,9 @@ find "$APP" -name '._*' -delete
 # Sign helper binaries if present
 if [[ -f "${APP}/Contents/Helpers/CodexBarCLI" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarCLI"
+fi
+if [[ -f "${APP}/Contents/Helpers/CodexBarSafeExporter" ]]; then
+  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarSafeExporter"
 fi
 if [[ -f "${APP}/Contents/Helpers/CodexBarClaudeWatchdog" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarClaudeWatchdog"

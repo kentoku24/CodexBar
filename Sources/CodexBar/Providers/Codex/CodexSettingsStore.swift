@@ -12,6 +12,7 @@ extension SettingsStore {
             case .auto: .auto
             case .oauth: .oauth
             case .cli: .cli
+            case .localUsageFile: .localFile
             }
             self.updateProviderConfig(provider: .codex) { entry in
                 entry.source = source
@@ -64,6 +65,8 @@ extension SettingsStore {
             return .cli
         case .oauth:
             return .oauth
+        case .localFile:
+            return .localUsageFile
         }
     }
 

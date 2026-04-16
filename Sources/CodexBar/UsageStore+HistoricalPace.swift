@@ -10,16 +10,23 @@ extension UsageStore {
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
         guard provider == .codex || provider == .claude else { return nil }
         guard window.remainingPercent > 0 else { return nil }
+        let isLocalFileSource = self.isLocalFileSourceActive(for: provider)
         let resolved: UsagePace?
-        if provider == .codex, self.settings.historicalTrackingEnabled {
-            let codexAccountKey = self.codexHistoricalAccountKey()
-            if self.codexHistoricalDatasetAccountKey == codexAccountKey,
-               let historical = CodexHistoricalPaceEvaluator.evaluate(
-                   window: window,
-                   now: now,
-                   dataset: self.codexHistoricalDataset)
-            {
-                resolved = historical
+        if isLocalFileSource {
+            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+        } else if self.settings.historicalTrackingEnabled {
+            if provider == .codex {
+                let codexAccountKey = self.codexHistoricalAccountKey()
+                if self.codexHistoricalDatasetAccountKey == codexAccountKey,
+                   let historical = CodexHistoricalPaceEvaluator.evaluate(
+                       window: window,
+                       now: now,
+                       dataset: self.codexHistoricalDataset)
+                {
+                    resolved = historical
+                } else {
+                    resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+                }
             } else {
                 resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
             }
@@ -34,6 +41,7 @@ extension UsageStore {
 
     func recordCodexHistoricalSampleIfNeeded(snapshot: UsageSnapshot) {
         guard self.settings.historicalTrackingEnabled else { return }
+        guard !self.isLocalFileSourceActive(for: .codex) else { return }
         guard let weekly = snapshot.secondary else { return }
 
         let sampledAt = snapshot.updatedAt
@@ -55,16 +63,22 @@ extension UsageStore {
             self.setCodexHistoricalDataset(nil, accountKey: nil)
             return
         }
-        let accountKey = self.codexHistoricalAccountKey(dashboard: self.openAIDashboard)
-        let dataset = await self.historicalUsageHistoryStore.loadCodexDataset(accountKey: accountKey)
-        self.setCodexHistoricalDataset(dataset, accountKey: accountKey)
-        if let dashboard = self.openAIDashboard {
-            self.backfillCodexHistoricalFromDashboardIfNeeded(dashboard)
+
+        if self.isLocalFileSourceActive(for: .codex) {
+            self.setCodexHistoricalDataset(nil, accountKey: nil)
+        } else {
+            let accountKey = self.codexHistoricalAccountKey(dashboard: self.openAIDashboard)
+            let dataset = await self.historicalUsageHistoryStore.loadCodexDataset(accountKey: accountKey)
+            self.setCodexHistoricalDataset(dataset, accountKey: accountKey)
+            if let dashboard = self.openAIDashboard {
+                self.backfillCodexHistoricalFromDashboardIfNeeded(dashboard)
+            }
         }
     }
 
     func backfillCodexHistoricalFromDashboardIfNeeded(_ dashboard: OpenAIDashboardSnapshot) {
         guard self.settings.historicalTrackingEnabled else { return }
+        guard !self.isLocalFileSourceActive(for: .codex) else { return }
         guard !dashboard.usageBreakdown.isEmpty else { return }
 
         let codexSnapshot = self.snapshots[.codex]

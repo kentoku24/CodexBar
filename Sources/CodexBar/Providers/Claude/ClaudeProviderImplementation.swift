@@ -49,7 +49,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
-        context.settings.claudeUsageDataSource.rawValue
+        context.settings.claudeUsageDataSource.sourceLabel
     }
 
     @MainActor
@@ -156,7 +156,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.claudeUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .claude)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : "Last success: \(label)"
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "claude-keychain-prompt-policy",

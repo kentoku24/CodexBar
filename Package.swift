@@ -58,6 +58,15 @@ let package = Package(
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),
+            .executableTarget(
+                name: "CodexBarSafeExporter",
+                dependencies: [
+                    "CodexBarCore",
+                ],
+                path: "Sources/CodexBarSafeExporter",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ]),
             .testTarget(
                 name: "CodexBarLinuxTests",
                 dependencies: ["CodexBarCore", "CodexBarCLI"],
@@ -112,7 +121,7 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
+            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarSafeExporter", "CodexBarWidget"],
             path: "Tests",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),

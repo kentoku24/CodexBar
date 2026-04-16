@@ -33,6 +33,10 @@ extension UsageStore {
         self.refreshingProviders.insert(provider)
         defer { self.refreshingProviders.remove(provider) }
 
+        if await self.refreshProviderFromLocalFileSnapshotIfNeeded(provider) {
+            return
+        }
+
         let tokenAccounts = self.tokenAccounts(for: provider)
         if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
             await self.refreshTokenAccounts(provider: provider, accounts: tokenAccounts)

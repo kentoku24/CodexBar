@@ -32,6 +32,9 @@ extension UsageStore {
     }
 
     func accountInfo() -> AccountInfo {
-        self.codexFetcher.loadAccountInfo()
+        guard !self.isCredentialFreeViewerModeEnabled(for: .codex) else {
+            return AccountInfo(email: nil, plan: nil)
+        }
+        return self.codexFetcher.loadAccountInfo()
     }
 }

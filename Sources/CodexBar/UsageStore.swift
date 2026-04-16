@@ -68,6 +68,14 @@ extension UsageStore {
     }
 }
 
+#if DEBUG
+extension UsageStore {
+    func _refreshTokenUsageForTesting(_ provider: UsageProvider, force: Bool) async {
+        await self.refreshTokenUsage(provider, force: force)
+    }
+}
+#endif
+
 @MainActor
 @Observable
 final class UsageStore {
@@ -132,6 +140,7 @@ final class UsageStore {
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
+    @ObservationIgnored let localFileSnapshotRefresher: any LocalFileSnapshotRefreshing
     @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored private let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
@@ -169,6 +178,7 @@ final class UsageStore {
         claudeFetcher: (any ClaudeUsageFetching)? = nil,
         costUsageFetcher: CostUsageFetcher = CostUsageFetcher(),
         settings: SettingsStore,
+        localFileSnapshotRefresher: (any LocalFileSnapshotRefreshing)? = nil,
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
@@ -180,6 +190,7 @@ final class UsageStore {
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
+        self.localFileSnapshotRefresher = localFileSnapshotRefresher ?? LocalFileSnapshotRefresher()
         self.registry = registry
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.planUtilizationHistoryStore = planUtilizationHistoryStore
@@ -415,7 +426,9 @@ final class UsageStore {
                     group.addTask { await self.refreshProvider(provider) }
                     group.addTask { await self.refreshStatus(provider) }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if !self.shouldUseLocalFileSource(for: .codex) {
+                    group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
             }
 
             // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
@@ -423,9 +436,11 @@ final class UsageStore {
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
-            await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+            if !self.shouldUseLocalFileSource(for: .codex) {
+                await self.refreshOpenAIDashboardIfNeeded(force: forceTokenUsage)
+            }
 
-            if self.openAIDashboardRequiresLogin {
+            if !self.shouldUseLocalFileSource(for: .codex), self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
@@ -1060,6 +1075,7 @@ extension UsageStore {
     }
 
     func codexAccountEmailForOpenAIDashboard() -> String? {
+        guard !self.shouldUseLocalFileSource(for: .codex) else { return nil }
         let direct = self.snapshots[.codex]?.accountEmail(for: .codex)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let direct, !direct.isEmpty { return direct }

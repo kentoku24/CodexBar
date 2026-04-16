@@ -29,7 +29,7 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
-        context.settings.codexUsageDataSource.rawValue
+        context.settings.codexUsageDataSource.sourceLabel
     }
 
     @MainActor
@@ -50,6 +50,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         case .auto: .auto
         case .oauth: .oauth
         case .cli: .cli
+        case .localUsageFile: .localFile
         }
     }
 
@@ -129,7 +130,9 @@ struct CodexProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
                 title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                subtitle:
+                "Auto falls back to the next source if the preferred one fails. " +
+                    "Local File is explicit and does not fallback.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -137,7 +140,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.codexUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .codex)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : "Last success: \(label)"
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "codex-cookie-source",

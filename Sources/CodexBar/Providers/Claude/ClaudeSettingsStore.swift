@@ -64,14 +64,14 @@ extension SettingsStore {
     private static func claudeUsageDataSource(from source: ProviderSourceMode?) -> ClaudeUsageDataSource {
         guard let source else { return .auto }
         switch source {
-        case .auto, .api:
-            return .auto
         case .web:
             return .web
         case .cli:
             return .cli
         case .oauth:
             return .oauth
+        default:
+            return .auto
         }
     }
 

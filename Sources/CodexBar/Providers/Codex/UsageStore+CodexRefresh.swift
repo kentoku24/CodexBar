@@ -8,6 +8,11 @@ extension UsageStore {
 
     func refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {
         guard self.isEnabled(.codex) else { return }
+        guard !self.shouldUseLocalFileSource(for: .codex) else {
+            self.credits = nil
+            self.lastCreditsError = "Credits unavailable in Local File mode."
+            return
+        }
         do {
             let credits = try await self.codexFetcher.loadLatestCredits(
                 keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)

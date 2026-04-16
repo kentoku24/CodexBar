@@ -112,14 +112,14 @@ public enum ClaudeProviderDescriptor {
 
     private static func sourceDataSource(from mode: ProviderSourceMode) -> ClaudeUsageDataSource {
         switch mode {
-        case .auto, .api:
-            .auto
         case .web:
             .web
         case .cli:
             .cli
         case .oauth:
             .oauth
+        default:
+            .auto
         }
     }
 }

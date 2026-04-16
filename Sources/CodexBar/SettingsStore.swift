@@ -133,10 +133,13 @@ final class SettingsStore {
             ampCookieStore: ampCookieStore,
             copilotTokenStore: copilotTokenStore,
             tokenAccountStore: tokenAccountStore)
+        let existingConfig = try? configStore.load()
         let config = CodexBarConfigMigrator.loadOrMigrate(
             configStore: configStore,
             userDefaults: userDefaults,
-            stores: legacyStores)
+            stores: legacyStores,
+            protectedProviders: LocalFileViewerMode.enabledProtectedProviders(
+                config: existingConfig ?? CodexBarConfig.makeDefault()))
         self.userDefaults = userDefaults
         self.configStore = configStore
         self.config = config

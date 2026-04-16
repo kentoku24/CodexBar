@@ -64,7 +64,7 @@ extension SettingsStore {
     private static func kiloUsageDataSource(from source: ProviderSourceMode?) -> KiloUsageDataSource {
         guard let source else { return .auto }
         switch source {
-        case .auto, .web, .oauth:
+        case .auto, .web, .oauth, .localFile:
             return .auto
         case .api:
             return .api

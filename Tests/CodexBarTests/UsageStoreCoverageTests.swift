@@ -80,6 +80,17 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `codex source label uses local file identifier`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-codex-local-file-source")
+        settings.codexUsageDataSource = .localUsageFile
+
+        let store = Self.makeUsageStore(settings: settings)
+        store.lastSourceLabels[.codex] = "local-file"
+
+        #expect(store.sourceLabel(for: .codex) == "local-file")
+    }
+
+    @Test
     func `provider with highest usage prefers kimi rate limit window`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-kimi-highest")
         let store = Self.makeUsageStore(settings: settings)
