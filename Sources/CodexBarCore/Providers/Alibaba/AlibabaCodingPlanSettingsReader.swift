@@ -15,7 +15,17 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.hostKey])
+        guard let raw = self.cleaned(environment[self.hostKey]),
+              let url = self.validatedAlibabaURL(raw)
+        else {
+            return nil
+        }
+
+        guard let host = url.host else { return nil }
+        if let port = url.port {
+            return "\(host):\(port)"
+        }
+        return host
     }
 
     public static func cookieHeader(
@@ -28,10 +38,7 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), url.scheme != nil {
-            return url
-        }
-        return URL(string: "https://\(raw)")
+        return self.validatedAlibabaURL(raw)
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -48,6 +55,26 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
 
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+
+    private static func validatedAlibabaURL(_ raw: String) -> URL? {
+        let candidate: URL? = if let url = URL(string: raw), url.scheme != nil {
+            url
+        } else {
+            URL(string: "https://\(raw)")
+        }
+        guard let candidate else { return nil }
+        guard candidate.scheme?.lowercased() == "https" else { return nil }
+        guard let host = candidate.host?.lowercased(), self.isAllowedAlibabaHost(host) else {
+            return nil
+        }
+        return candidate
+    }
+
+    private static func isAllowedAlibabaHost(_ host: String) -> Bool {
+        let normalized = host.hasSuffix(".") ? String(host.dropLast()) : host
+        let suffixes = [".aliyun.com", ".alibabacloud.com", ".aliyuncs.com"]
+        return suffixes.contains { normalized == String($0.dropFirst()) || normalized.hasSuffix($0) }
     }
 }
 

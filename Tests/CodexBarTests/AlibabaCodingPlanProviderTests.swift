@@ -25,6 +25,21 @@ struct AlibabaCodingPlanSettingsReaderTests {
     }
 
     @Test
+    func `quota URL rejects non HTTPS`() {
+        let url = AlibabaCodingPlanSettingsReader
+            .quotaURL(environment: [AlibabaCodingPlanSettingsReader
+                    .quotaURLKey: "http://modelstudio.console.alibabacloud.com/data/api.json"])
+        #expect(url == nil)
+    }
+
+    @Test
+    func `quota URL rejects non Alibaba hosts`() {
+        let url = AlibabaCodingPlanSettingsReader
+            .quotaURL(environment: [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://example.com/data/api.json"])
+        #expect(url == nil)
+    }
+
+    @Test
     func `missing cookie error includes access hint when present`() {
         let error = AlibabaCodingPlanSettingsError
             .missingCookie(details: "Safari cookie file exists but is not readable.")
@@ -644,9 +659,16 @@ struct AlibabaCodingPlanRegionTests {
 
     @Test
     func `quota url override beats host`() {
+        let env = [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://custom.aliyun.com/custom/quota"]
+        let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
+        #expect(url.absoluteString == "https://custom.aliyun.com/custom/quota")
+    }
+
+    @Test
+    func `invalid quota url override falls back to region endpoint`() {
         let env = [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://example.com/custom/quota"]
         let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
-        #expect(url.absoluteString == "https://example.com/custom/quota")
+        #expect(url == AlibabaCodingPlanAPIRegion.international.quotaURL)
     }
 }
 
@@ -743,7 +765,7 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
 
         AlibabaConsoleSECTokenStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            #expect(url.host == "alibaba-proxy.test")
+            #expect(url.host == "alibaba-proxy.aliyun.com")
 
             if request.httpMethod == "GET", url.path == AlibabaCodingPlanAPIRegion.international.dashboardURL.path {
                 return Self.makeResponse(url: url, body: "<html></html>", statusCode: 200)
@@ -783,7 +805,7 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
         let snapshot = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
             cookieHeader: "sec_token=cookie-sec-token; login_aliyunid_ticket=ticket; login_aliyunid_pk=user",
             region: .international,
-            environment: [AlibabaCodingPlanSettingsReader.hostKey: "https://alibaba-proxy.test"],
+            environment: [AlibabaCodingPlanSettingsReader.hostKey: "https://alibaba-proxy.aliyun.com"],
             now: Date(timeIntervalSince1970: 1_700_000_000))
 
         #expect(snapshot.planName == "Alibaba Coding Plan Pro")
